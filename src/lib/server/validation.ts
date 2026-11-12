@@ -17,6 +17,7 @@ export type BusinessInput = {
   status?: "pendente" | "aprovado" | "rejeitado";
   foto_url?: string;
   foto_drive_file_id?: string;
+  tipo_imagem: "foto" | "logo_escuro" | "logo_claro";
 };
 
 export function normalizeBusinessInput(value: unknown): BusinessInput {
@@ -37,8 +38,17 @@ export function normalizeBusinessInput(value: unknown): BusinessInput {
   const categoria_id = stringField("categoria_id", 160);
   const whatsapp = stringField("whatsapp", 32);
   const responsavel = stringField("responsavel", 160);
+  const rawTipoImagem = input.tipo_imagem ?? "foto";
+  const tipoImagem = rawTipoImagem === "logo" ? "logo_escuro" : rawTipoImagem;
   const dias = input.dias_funcionamento ?? [];
 
+  if (
+    tipoImagem !== "foto" &&
+    tipoImagem !== "logo_escuro" &&
+    tipoImagem !== "logo_claro"
+  ) {
+    throw new Error("O tipo de imagem informado é inválido.");
+  }
   if (!nome || !categoria_id || !whatsapp || !responsavel) {
     throw new Error("Preencha nome, categoria, WhatsApp e responsável.");
   }
@@ -84,6 +94,7 @@ export function normalizeBusinessInput(value: unknown): BusinessInput {
     horario_abertura,
     horario_fechamento,
     responsavel,
+    tipo_imagem: tipoImagem,
     ...(status ? { status } : {}),
   };
 }

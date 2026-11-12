@@ -42,6 +42,7 @@ const REQUIRED_HEADERS = Object.freeze({
     "horario_fechamento",
     "created_at",
     "foto_drive_file_id",
+    "tipo_imagem",
   ],
   administradores: ["usuario", "senha_hash", "senha_salt"],
 });
@@ -280,6 +281,9 @@ function businessFromRecord_(record, categories) {
     instagram: String(record.instagram || ""),
     site: String(record.site || ""),
     foto_url: String(record.foto_url || ""),
+    tipo_imagem: String(record.tipo_imagem || "foto") === "logo"
+      ? "logo_escuro"
+      : String(record.tipo_imagem || "foto"),
     responsavel: String(record.responsavel || ""),
     status: String(record.status || "pendente"),
     dias_funcionamento: parseDays_(record.dias_funcionamento),
@@ -379,7 +383,14 @@ function validateBusiness_(input, isUpdate) {
     status: isUpdate ? text("status", 16) : "pendente",
     foto_url: text("foto_url", 1000),
     foto_drive_file_id: text("foto_drive_file_id", 200),
+    tipo_imagem: (function () {
+      const value = text("tipo_imagem", 16) || "foto";
+      return value === "logo" ? "logo_escuro" : value;
+    })(),
   };
+  if (["foto", "logo_escuro", "logo_claro"].indexOf(business.tipo_imagem) === -1) {
+    throw new Error("Tipo de imagem inválido.");
+  }
   if (!business.nome || !business.categoria_id || !business.whatsapp || !business.responsavel) {
     throw new Error("Nome, categoria, WhatsApp e responsável são obrigatórios.");
   }
@@ -424,6 +435,7 @@ function businessRow_(headers, business, id, createdAt) {
     horario_fechamento: business.horario_fechamento,
     created_at: createdAt,
     foto_drive_file_id: business.foto_drive_file_id,
+    tipo_imagem: business.tipo_imagem,
   };
   return headers.map(function (header) { return valueForCell_(values[header] || ""); });
 }

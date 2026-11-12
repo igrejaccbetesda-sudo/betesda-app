@@ -24,4 +24,5 @@ export interface Empresa {
   horario_fechamento: string;
   created_at: string;
   foto_drive_file_id?: string;
+  tipo_imagem?: "foto" | "logo" | "logo_escuro" | "logo_claro";
 }

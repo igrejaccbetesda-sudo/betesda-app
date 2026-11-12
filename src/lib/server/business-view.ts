@@ -9,6 +9,7 @@ const PUBLIC_FIELDS = [
   "instagram",
   "site",
   "foto_url",
+  "tipo_imagem",
   "status",
   "dias_funcionamento",
   "horario_abertura",

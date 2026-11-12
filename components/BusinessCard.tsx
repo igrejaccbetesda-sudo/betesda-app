@@ -1,7 +1,7 @@
-import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, MapPin, MessageCircle, Store } from "lucide-react";
+import { ArrowRight, MapPin, MessageCircle } from "lucide-react";
 import OpenBadge from "./OpenBadge";
+import BusinessImage from "./BusinessImage";
 import type { Empresa } from "../types";
 
 type BusinessCardProps = {
@@ -17,24 +17,14 @@ export default function BusinessCard({
 
   return (
     <article className="block overflow-hidden rounded-2xl border border-[#E8E2D6] bg-white transition-shadow hover:shadow-md">
-      <div className="relative h-[100px] bg-[#EFE2C0]">
-        {empresa.foto_url ? (
-          <Image
-            src={empresa.foto_url}
-            alt={`Imagem de ${empresa.nome}`}
-            fill
-            sizes="(max-width: 768px) 100vw, 420px"
-            className="object-cover"
-          />
-        ) : (
-          <Store
-            aria-hidden="true"
-            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-[#8A7A45]"
-            size={34}
-            strokeWidth={1.5}
-          />
-        )}
-
+      <div className="relative h-[100px]">
+        <BusinessImage
+          src={empresa.foto_url}
+          alt={`Imagem de ${empresa.nome}`}
+          tipo={empresa.tipo_imagem}
+          sizes="(max-width: 768px) 100vw, 420px"
+          iconSize={34}
+        />
         <div className="absolute bottom-3 left-3">
           <OpenBadge
             diasFuncionamento={empresa.dias_funcionamento}

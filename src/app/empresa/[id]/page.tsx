@@ -1,10 +1,10 @@
 "use client";
 
-import Image from "next/image";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, MapPin, MessageCircle, Store } from "lucide-react";
+import { ArrowLeft, MapPin, MessageCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 import OpenBadge from "../../../../components/OpenBadge";
+import BusinessImage from "../../../../components/BusinessImage";
 import {
   formatBusinessDays,
   normalizeBusinessTime,
@@ -101,24 +101,15 @@ export default function EmpresaPage() {
         <ArrowLeft size={17} aria-hidden="true" />
         Voltar
       </button>
-      <div className="relative h-64 overflow-hidden rounded-2xl bg-[#EFE2C0] sm:h-80">
-        {empresa.foto_url ? (
-          <Image
-            src={empresa.foto_url}
-            alt={`Imagem de ${empresa.nome}`}
-            fill
-            sizes="(max-width: 768px) 100vw, 672px"
-            className="object-cover"
-            priority
-          />
-        ) : (
-          <Store
-            aria-hidden="true"
-            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-[#8A7A45]"
-            size={64}
-            strokeWidth={1.25}
-          />
-        )}
+      <div className="relative h-64 overflow-hidden rounded-2xl sm:h-80">
+        <BusinessImage
+          src={empresa.foto_url}
+          alt={`Imagem de ${empresa.nome}`}
+          tipo={empresa.tipo_imagem}
+          sizes="(max-width: 768px) 100vw, 672px"
+          priority
+          iconSize={64}
+        />
       </div>
 
       <section className="py-7">

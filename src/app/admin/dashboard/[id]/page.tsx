@@ -1,10 +1,10 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { ChangeEvent, FormEvent, useEffect, useState } from "react";
 import { ArrowLeft, Trash2 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
+import BusinessImage from "../../../../../components/BusinessImage";
 import { normalizeBusinessTime } from "../../../../lib/business-hours";
 import type { Categoria, Empresa } from "../../../../../types";
 
@@ -32,7 +32,9 @@ type FormularioEmpresa = Pick<
   | "horario_abertura"
   | "horario_fechamento"
   | "responsavel"
+  | "tipo_imagem"
 > & {
+  tipo_imagem: "foto" | "logo_escuro" | "logo_claro";
   status: "pendente" | "aprovado" | "rejeitado";
 };
 
@@ -103,6 +105,13 @@ export default function EditarEmpresaPage() {
           horario_abertura: normalizarHorario(empresa.horario_abertura),
           horario_fechamento: normalizarHorario(empresa.horario_fechamento),
           responsavel: empresa.responsavel ?? "",
+          tipo_imagem:
+            empresa.tipo_imagem === "logo" ||
+            empresa.tipo_imagem === "logo_escuro"
+              ? "logo_escuro"
+              : empresa.tipo_imagem === "logo_claro"
+                ? "logo_claro"
+                : "foto",
           status: (empresa.status ?? "pendente") as FormularioEmpresa["status"],
         });
         setFotoAtual(empresa.foto_url ?? "");
@@ -190,6 +199,13 @@ export default function EditarEmpresaPage() {
             ? {
                 ...current,
                 dias_funcionamento: normalizarDias(data.business.dias_funcionamento),
+                tipo_imagem:
+                  data.business.tipo_imagem === "logo" ||
+                  data.business.tipo_imagem === "logo_escuro"
+                    ? "logo_escuro"
+                    : data.business.tipo_imagem === "logo_claro"
+                      ? "logo_claro"
+                      : "foto",
               }
             : current,
         );
@@ -327,18 +343,47 @@ export default function EditarEmpresaPage() {
             ))}
           </div>
 
-          {fotoAtual && (
+          {(fotoAtual || novaFoto) && (
             <div>
-              <p className={classesDoLabel}>Foto atual</p>
-              <div className="relative mt-2 h-48 overflow-hidden rounded-xl bg-[#EFE2C0]">
-                <Image src={fotoAtual} alt={`Foto atual de ${formulario.nome}`} fill unoptimized className="object-cover" sizes="(max-width: 768px) 100vw, 672px" />
+              <p className={classesDoLabel}>
+                {novaFoto ? "Prévia da nova imagem" : "Imagem atual"}
+              </p>
+              <div className="relative mt-2 h-48 overflow-hidden rounded-xl">
+                <BusinessImage
+                  src={fotoAtual}
+                  file={novaFoto}
+                  alt={`Imagem atual de ${formulario.nome}`}
+                  tipo={formulario.tipo_imagem}
+                  sizes="(max-width: 768px) 100vw, 672px"
+                  iconSize={48}
+                />
               </div>
             </div>
           )}
 
           <div>
-            <label htmlFor="foto" className={classesDoLabel}>Trocar foto</label>
+            <label htmlFor="foto" className={classesDoLabel}>Trocar imagem</label>
             <input id="foto" type="file" accept="image/*" onChange={atualizarFoto} className="mt-2 block w-full rounded-xl border border-[#E8E2D6] bg-white text-sm text-[#77736A] file:mr-4 file:border-0 file:border-r file:border-[#E8E2D6] file:bg-[#F7F4EE] file:px-4 file:py-3 file:text-sm file:font-medium file:text-[#555149]" />
+          </div>
+
+          <div>
+            <label htmlFor="tipo_imagem" className={classesDoLabel}>Tipo da imagem</label>
+            <select
+              id="tipo_imagem"
+              value={formulario.tipo_imagem}
+              onChange={(event) => {
+                const value = event.target.value;
+                atualizarCampo(
+                  "tipo_imagem",
+                  value === "logo_escuro" || value === "logo_claro" ? value : "foto",
+                );
+              }}
+              className={classesDoCampo}
+            >
+              <option value="foto">Foto</option>
+              <option value="logo_escuro">Logo com fundo escuro</option>
+              <option value="logo_claro">Logo com fundo claro</option>
+            </select>
           </div>
 
           <div>

@@ -33,8 +33,41 @@ test("admin mutations use actions and payload fields supported by Code.gs", asyn
   assert.match(appsScript, /case "deleteBusiness":[\s\S]*?deleteBusiness_\(data\.id\)/);
   assert.match(appsScript, /if \(photoData\) \{[\s\S]*?uploadedPhoto = uploadPhoto_\(photoData\)/);
   assert.match(appsScript, /business\.foto_url = uploadedPhoto\.foto_url;[\s\S]*?business\.foto_drive_file_id = uploadedPhoto\.fileId/);
+  assert.match(appsScript, /file\.setSharing\(DriveApp\.Access\.ANYONE_WITH_LINK,\s*DriveApp\.Permission\.VIEW\)/);
+  assert.match(appsScript, /"tipo_imagem"/);
+  assert.match(editorPage, /formData\.set\("business",\s*JSON\.stringify\(formulario\)\)/);
+  assert.match(editorPage, /tipo_imagem/);
   assert.match(appsScript, /if \(oldFileId && finalFileId && oldFileId !== finalFileId\) \{[\s\S]*?trashImage_\(oldFileId\)/);
   assert.match(appsScript, /if \(fileId\) trashImage_\(fileId\);[\s\S]*?found\.sheet\.deleteRow\(found\.rowNumber\)/);
+});
+
+test("public business images bypass the Next optimizer and handle unavailable Drive images", async () => {
+  const [imageComponent, cardComponent, detailPage] = await Promise.all([
+    readSource("components/BusinessImage.tsx"),
+    readSource("components/BusinessCard.tsx"),
+    readSource("src/app/empresa/[id]/page.tsx"),
+  ]);
+  assert.match(imageComponent, /unoptimized/);
+  assert.match(imageComponent, /getBrowserImageUrl\(src\)/);
+  assert.match(imageComponent, /onError=\{\(\) => setUnavailable\(true\)\}/);
+  assert.match(imageComponent, /bg-\[#0D0D0C\]/);
+  assert.match(imageComponent, /bg-\[#F7F4EE\]/);
+  assert.match(imageComponent, /object-contain p-4/);
+  assert.match(imageComponent, /object-cover/);
+  assert.match(cardComponent, /<BusinessImage/);
+  assert.match(detailPage, /<BusinessImage/);
+  const [signupPage, editorPage] = await Promise.all([
+    readSource("src/app/cadastro/page.tsx"),
+    readSource("src/app/admin/dashboard/[id]/page.tsx"),
+  ]);
+  for (const page of [signupPage, editorPage]) {
+    assert.match(page, /value="foto">Foto/);
+    assert.match(page, /value="logo_escuro">Logo com fundo escuro/);
+    assert.match(page, /value="logo_claro">Logo com fundo claro/);
+    assert.match(page, /Prévia da (?:nova )?imagem|BusinessImage/);
+  }
+  assert.match(signupPage, /file=\{foto\}/);
+  assert.match(editorPage, /file=\{novaFoto\}/);
 });
 
 test("Apps Script adapter sends the private envelope and returns successful data", async () => {

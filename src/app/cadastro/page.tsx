@@ -2,6 +2,7 @@
 
 import { ChangeEvent, FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import BusinessImage from "../../../components/BusinessImage";
 import type { Categoria } from "../../../types";
 
 const diasDaSemana = [
@@ -27,6 +28,7 @@ type FormularioCadastro = {
   horario_abertura: string;
   horario_fechamento: string;
   responsavel: string;
+  tipo_imagem: "foto" | "logo_escuro" | "logo_claro";
 };
 
 type ErrosFormulario = Partial<Record<"nome" | "categoria_id" | "whatsapp" | "responsavel", string>>;
@@ -44,6 +46,7 @@ const estadoInicial: FormularioCadastro = {
   horario_abertura: "",
   horario_fechamento: "",
   responsavel: "",
+  tipo_imagem: "foto",
 };
 
 export default function CadastroPage() {
@@ -381,7 +384,7 @@ export default function CadastroPage() {
 
           <div>
             <label htmlFor="foto" className={classesDoLabel}>
-              Foto da empresa
+              Imagem da empresa
             </label>
             <input
               id="foto"
@@ -391,6 +394,46 @@ export default function CadastroPage() {
               className="mt-2 block w-full rounded-xl border border-[#E8E2D6] bg-white text-sm text-[#77736A] file:mr-4 file:border-0 file:border-r file:border-[#E8E2D6] file:bg-[#F7F4EE] file:px-4 file:py-3 file:text-sm file:font-medium file:text-[#555149]"
             />
           </div>
+
+          <div>
+            <label htmlFor="tipo_imagem" className={classesDoLabel}>
+              Tipo da imagem
+            </label>
+            <select
+              id="tipo_imagem"
+              value={formulario.tipo_imagem}
+              onChange={(event) =>
+                atualizarCampo(
+                  "tipo_imagem",
+                  event.target.value === "logo_escuro" ||
+                    event.target.value === "logo_claro"
+                    ? event.target.value
+                    : "foto",
+                )
+              }
+              className={classesDoCampo}
+            >
+              <option value="foto">Foto</option>
+              <option value="logo_escuro">Logo com fundo escuro</option>
+              <option value="logo_claro">Logo com fundo claro</option>
+            </select>
+          </div>
+
+          {foto && (
+            <div>
+              <p className={classesDoLabel}>Prévia da imagem</p>
+              <div className="relative mt-2 h-48 overflow-hidden rounded-xl">
+                <BusinessImage
+                  src=""
+                  file={foto}
+                  alt="Prévia da imagem da empresa"
+                  tipo={formulario.tipo_imagem}
+                  sizes="(max-width: 768px) 100vw, 672px"
+                  iconSize={48}
+                />
+              </div>
+            </div>
+          )}
 
           <div>
             <label htmlFor="responsavel" className={classesDoLabel}>
