@@ -17,6 +17,11 @@ test("PWA manifest configures the Guia Betesda standalone app", async () => {
     [
       { src: "/pwa-icon-192.png", sizes: "192x192", purpose: "any" },
       { src: "/pwa-icon-512.png", sizes: "512x512", purpose: "any" },
+      {
+        src: "/pwa-icon-512-maskable.png",
+        sizes: "512x512",
+        purpose: "maskable",
+      },
     ],
   );
 });
@@ -25,6 +30,7 @@ test("PWA icons and Apple touch icon are derived assets in public", async () => 
   const iconFiles = [
     ["public/pwa-icon-192.png", 192],
     ["public/pwa-icon-512.png", 512],
+    ["public/pwa-icon-512-maskable.png", 512],
     ["public/apple-touch-icon.png", 180],
     ["public/favicon.png", 48],
   ];
