@@ -1,36 +1,53 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Guia Betesda
 
-## Getting Started
+Aplicação Next.js 14 com Route Handlers server-side. O frontend usa APIs locais em `/api/*`; os handlers chamam Google Apps Script sem expor suas credenciais ao navegador.
 
-First, run the development server:
+## Desenvolvimento
 
-```bash
+```powershell
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+O cookie administrativo exige HTTPS. Valide login em preview HTTPS do Netlify; não desative `Secure` em produção.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Variáveis privadas
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Configure no ambiente local e no painel Netlify, sem prefixo `NEXT_PUBLIC_`:
 
-## Learn More
+- `APPS_SCRIPT_WEB_APP_URL`: URL do Web App.
+- `APPS_SCRIPT_API_SECRET`: segredo correspondente à propriedade de script `API_SECRET`.
+- `ADMIN_SESSION_SECRET`: segredo aleatório com pelo menos 32 bytes para assinar sessões.
 
-To learn more about Next.js, take a look at the following resources:
+Não coloque esses valores em commits, respostas HTTP ou logs. O código Apps Script não gera nem altera o segredo existente.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Hashes de senha administrativa
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+O login aceita somente hashes no formato `scrypt$16384$8$1$<64 caracteres hexadecimais>` e salt hexadecimal de 16 bytes. O formato previamente armazenado não foi disponibilizado para validação; gere hashes novos antes de ativar o login:
 
-## Deploy on Vercel
+```powershell
+node scripts/reset-admin-password.mjs
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+O utilitário solicita senha sem exibi-la e imprime hash/salt para atualização manual na linha correta da aba `administradores`. Não compartilhe esses valores.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Google Apps Script
+
+`apps-script/Code.gs` é um artefato local para revisão e substituição manual no editor do Google Apps Script. Ele não atualiza nem publica o projeto remoto.
+
+1. Confirme a propriedade existente `API_SECRET` e as permissões do script.
+2. Revise o código e a compatibilidade das abas existentes.
+3. Atualize o código no editor e publique uma nova versão do Web App.
+4. Configure as três variáveis privadas acima no Netlify.
+
+O script não cria, apaga ou recria abas. Somente arquivos individuais destinados à exibição são compartilhados por link; a planilha e a pasta permanecem privadas.
+
+## Testes locais
+
+```powershell
+npm run build
+npm run lint
+node --experimental-strip-types --test tests/validation.test.mjs
+```
+
+Os testes locais não acessam nem alteram a planilha ou o Drive de produção. Valide URLs de imagem e login em preview HTTPS antes de ativar o site.

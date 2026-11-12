@@ -23,4 +23,5 @@ export interface Empresa {
   horario_abertura: string;
   horario_fechamento: string;
   created_at: string;
+  foto_drive_file_id?: string;
 }

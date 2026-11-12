@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { normalizeBusinessDays, normalizeBusinessTime } from "../src/lib/business-hours";
 
 type OpenBadgeProps = {
   diasFuncionamento?: number[] | string;
@@ -8,37 +9,11 @@ type OpenBadgeProps = {
   horarioFechamento?: string;
 };
 
-function timeToMinutes(time: string) {
-  const match = /^(\d{2}):(\d{2})(?::\d{2})?$/.exec(time);
-
-  if (!match) {
-    return null;
-  }
-
-  const hours = Number(match[1]);
-  const minutes = Number(match[2]);
-
-  if (hours > 23 || minutes > 59) {
-    return null;
-  }
-
-  return hours * 60 + minutes;
-}
-
-function normalizeDiasFuncionamento(dias?: number[] | string) {
-  if (Array.isArray(dias)) {
-    return dias;
-  }
-
-  if (!dias) {
-    return [];
-  }
-
-  return dias
-    .replace(/[{}]/g, "")
-    .split(",")
-    .map((dia) => Number(dia.trim()))
-    .filter((dia) => Number.isInteger(dia));
+function timeToMinutes(value: unknown) {
+  const time = normalizeBusinessTime(value);
+  const match = /^(\d{2}):(\d{2})$/.exec(time);
+  if (!match) return null;
+  return Number(match[1]) * 60 + Number(match[2]);
 }
 
 export default function OpenBadge({
@@ -62,9 +37,7 @@ export default function OpenBadge({
 
   useEffect(() => {
     const updateStatus = () => {
-      const diasFuncionamentoNormalizados = normalizeDiasFuncionamento(
-        diasFuncionamento,
-      );
+      const diasFuncionamentoNormalizados = normalizeBusinessDays(diasFuncionamento);
 
       if (
         !diasFuncionamentoNormalizados.length ||

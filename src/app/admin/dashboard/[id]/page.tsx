@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ChangeEvent, FormEvent, useEffect, useState } from "react";
 import { ArrowLeft, Trash2 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
-import { supabase } from "../../../../../lib/supabaseClient";
+import { normalizeBusinessTime } from "../../../../lib/business-hours";
 import type { Categoria, Empresa } from "../../../../../types";
 
 const diasDaSemana = [
@@ -53,13 +53,7 @@ function normalizarDias(dias: number[] | string | null | undefined) {
 }
 
 function normalizarHorario(horario: string | null | undefined) {
-  return horario?.slice(0, 5) ?? "";
-}
-
-function obterCaminhoDaFoto(url: string) {
-  const marcador = "/fotos-empresas/";
-  const indice = url.indexOf(marcador);
-  return indice >= 0 ? decodeURIComponent(url.slice(indice + marcador.length)) : null;
+  return normalizeBusinessTime(horario);
 }
 
 export default function EditarEmpresaPage() {
@@ -78,25 +72,24 @@ export default function EditarEmpresaPage() {
     let montado = true;
 
     async function carregarDados() {
-      const { data: sessaoData } = await supabase.auth.getSession();
-      if (!sessaoData.session) {
-        router.replace("/admin");
-        return;
-      }
+      try {
+        const response = await fetch(
+          `/api/admin/businesses/${encodeURIComponent(params.id)}`,
+          { cache: "no-store" },
+        );
+        if (response.status === 401) {
+          router.replace("/admin");
+          return;
+        }
+        if (response.status === 404) throw new Error("Empresa não encontrada.");
+        if (!response.ok) throw new Error("Não foi possível carregar os dados da empresa.");
+        const result = (await response.json()) as {
+          business: Empresa;
+          categories: Categoria[];
+        };
+        if (!montado) return;
 
-      const [empresaResult, categoriasResult] = await Promise.all([
-        supabase.from("empresas").select("*").eq("id", params.id).maybeSingle(),
-        supabase.from("categorias").select("*").order("nome", { ascending: true }),
-      ]);
-
-      if (!montado) {
-        return;
-      }
-
-      if (empresaResult.error || !empresaResult.data) {
-        setErro("Empresa não encontrada.");
-      } else {
-        const empresa = empresaResult.data as Empresa;
+        const empresa = result.business;
         setFormulario({
           nome: empresa.nome ?? "",
           categoria_id: empresa.categoria_id ?? "",
@@ -113,13 +106,14 @@ export default function EditarEmpresaPage() {
           status: (empresa.status ?? "pendente") as FormularioEmpresa["status"],
         });
         setFotoAtual(empresa.foto_url ?? "");
+        setCategorias(result.categories);
+      } catch (error) {
+        if (montado) {
+          setErro(error instanceof Error ? error.message : "Não foi possível carregar os dados.");
+        }
+      } finally {
+        if (montado) setCarregando(false);
       }
-
-      if (!categoriasResult.error) {
-        setCategorias((categoriasResult.data ?? []) as Categoria[]);
-      }
-
-      setCarregando(false);
     }
 
     if (params.id) {
@@ -167,39 +161,39 @@ export default function EditarEmpresaPage() {
     setSalvando(true);
 
     try {
-      let fotoUrl = fotoAtual;
+      const formData = new FormData();
+      formData.set("business", JSON.stringify(formulario));
+      if (novaFoto) formData.set("foto", novaFoto);
 
-      if (novaFoto) {
-        const nomeSeguro = novaFoto.name.replace(/[^a-zA-Z0-9._-]/g, "-");
-        const caminhoFoto = `${params.id}-${Date.now()}-${nomeSeguro}`;
-        const { error: uploadError } = await supabase.storage
-          .from("fotos-empresas")
-          .upload(caminhoFoto, novaFoto, { contentType: novaFoto.type, upsert: false });
-
-        if (uploadError) {
-          throw new Error("Não foi possível enviar a nova foto.");
-        }
-
-        fotoUrl = supabase.storage.from("fotos-empresas").getPublicUrl(caminhoFoto).data.publicUrl;
-
-        const caminhoFotoAnterior = obterCaminhoDaFoto(fotoAtual);
-        if (caminhoFotoAnterior) {
-          await supabase.storage.from("fotos-empresas").remove([caminhoFotoAnterior]);
-        }
+      const response = await fetch(
+        `/api/admin/businesses/${encodeURIComponent(params.id)}`,
+        { method: "PUT", body: formData },
+      );
+      const result = (await response.json()) as { error?: string };
+      if (response.status === 401) {
+        router.replace("/admin");
+        return;
       }
+      if (!response.ok) throw new Error(result.error || "Não foi possível salvar as alterações.");
 
-      const { error: updateError } = await supabase
-        .from("empresas")
-        .update({ ...formulario, foto_url: fotoUrl })
-        .eq("id", params.id);
-
-      if (updateError) {
-        throw new Error("Não foi possível salvar as alterações.");
-      }
-
-      setFotoAtual(fotoUrl);
       setNovaFoto(null);
       setErro("");
+      const refreshed = await fetch(
+        `/api/admin/businesses/${encodeURIComponent(params.id)}`,
+        { cache: "no-store" },
+      );
+      if (refreshed.ok) {
+        const data = (await refreshed.json()) as { business: Empresa };
+        setFotoAtual(data.business.foto_url ?? "");
+        setFormulario((current) =>
+          current
+            ? {
+                ...current,
+                dias_funcionamento: normalizarDias(data.business.dias_funcionamento),
+              }
+            : current,
+        );
+      }
     } catch (error) {
       setErro(error instanceof Error ? error.message : "Não foi possível salvar as alterações.");
     } finally {
@@ -214,20 +208,22 @@ export default function EditarEmpresaPage() {
 
     setErro("");
     setExcluindo(true);
-    const { error: deleteError } = await supabase.from("empresas").delete().eq("id", params.id);
-
-    if (deleteError) {
-      setErro("Não foi possível excluir o cadastro.");
+    try {
+      const response = await fetch(
+        `/api/admin/businesses/${encodeURIComponent(params.id)}`,
+        { method: "DELETE" },
+      );
+      const result = (await response.json()) as { error?: string };
+      if (response.status === 401) {
+        router.replace("/admin");
+        return;
+      }
+      if (!response.ok) throw new Error(result.error || "Não foi possível excluir o cadastro.");
+      router.replace("/admin/dashboard");
+    } catch (error) {
+      setErro(error instanceof Error ? error.message : "Não foi possível excluir o cadastro.");
       setExcluindo(false);
-      return;
     }
-
-    const caminhoFoto = obterCaminhoDaFoto(fotoAtual);
-    if (caminhoFoto) {
-      await supabase.storage.from("fotos-empresas").remove([caminhoFoto]);
-    }
-
-    router.replace("/admin/dashboard");
   }
 
   const classesDoCampo =

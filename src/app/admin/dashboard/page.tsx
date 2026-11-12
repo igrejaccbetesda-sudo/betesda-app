@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Check, LogOut, Pencil, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { supabase } from "../../../../lib/supabaseClient";
 import type { Empresa } from "../../../../types";
 
 type EmpresaComCategoria = Empresa & {
@@ -61,27 +60,23 @@ export default function AdminDashboardPage() {
     let montado = true;
 
     async function carregarDashboard() {
-      const { data: sessaoData } = await supabase.auth.getSession();
-      if (!sessaoData.session) {
-        router.replace("/admin");
-        return;
+      try {
+        const response = await fetch("/api/admin/businesses", { cache: "no-store" });
+        if (response.status === 401) {
+          router.replace("/admin");
+          return;
+        }
+        if (!response.ok) throw new Error("Falha ao carregar cadastros");
+        const data = (await response.json()) as EmpresaComCategoria[];
+        if (montado) {
+          setEmpresas(data);
+          setErro("");
+        }
+      } catch {
+        if (montado) setErro("Não foi possível carregar os cadastros. Tente novamente.");
+      } finally {
+        if (montado) setCarregando(false);
       }
-
-      const { data, error } = await supabase
-        .from("empresas")
-        .select("*, categorias(nome)")
-        .order("created_at", { ascending: false });
-
-      if (!montado) {
-        return;
-      }
-
-      if (error) {
-        setErro("Não foi possível carregar os cadastros. Tente novamente.");
-      } else {
-        setEmpresas((data ?? []) as EmpresaComCategoria[]);
-      }
-      setCarregando(false);
     }
 
     carregarDashboard();
@@ -103,26 +98,31 @@ export default function AdminDashboardPage() {
     setErro("");
     setAtualizandoId(id);
 
-    const { error: updateError } = await supabase
-      .from("empresas")
-      .update({ status })
-      .eq("id", id);
-
-    if (updateError) {
-      setErro("Não foi possível atualizar o status. Tente novamente.");
-    } else {
-      setEmpresas((empresasAtuais) =>
-        empresasAtuais.map((empresa) =>
-          empresa.id === id ? { ...empresa, status } : empresa,
+    try {
+      const response = await fetch(`/api/admin/businesses/${encodeURIComponent(id)}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      if (response.status === 401) {
+        router.replace("/admin");
+        return;
+      }
+      if (!response.ok) throw new Error("Falha ao atualizar status");
+      setEmpresas((current) =>
+        current.map((business) =>
+          business.id === id ? { ...business, status } : business,
         ),
       );
+    } catch {
+      setErro("Não foi possível atualizar o status. Tente novamente.");
+    } finally {
+      setAtualizandoId(null);
     }
-
-    setAtualizandoId(null);
   }
 
   async function sair() {
-    await supabase.auth.signOut();
+    await fetch("/api/admin/logout", { method: "POST" });
     router.replace("/admin");
   }
 

@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Search, SearchX } from "lucide-react";
 import BusinessCard from "../../../components/BusinessCard";
-import { supabase } from "../../../lib/supabaseClient";
 import type { Categoria, Empresa } from "../../../types";
 
 type EmpresaComCategoria = Empresa & {
@@ -24,28 +23,32 @@ export default function ConsultaPage() {
   const [busca, setBusca] = useState("");
   const [categoriaSelecionada, setCategoriaSelecionada] = useState("todos");
   const [carregando, setCarregando] = useState(true);
+  const [, setErro] = useState("");
 
   useEffect(() => {
     async function carregarDados() {
       setCarregando(true);
 
-      const [categoriasResult, empresasResult] = await Promise.all([
-        supabase.from("categorias").select("*").order("nome", { ascending: true }),
-        supabase
-          .from("empresas")
-          .select("*, categorias(nome)")
-          .eq("status", "aprovado"),
-      ]);
-
-      if (!categoriasResult.error) {
-        setCategorias((categoriasResult.data ?? []) as Categoria[]);
+      try {
+        const [categoriasResponse, empresasResponse] = await Promise.all([
+          fetch("/api/categories", { cache: "no-store" }),
+          fetch("/api/businesses", { cache: "no-store" }),
+        ]);
+        if (!categoriasResponse.ok || !empresasResponse.ok) {
+          throw new Error("Não foi possível carregar os negócios.");
+        }
+        const [categoriasData, empresasData] = await Promise.all([
+          categoriasResponse.json(),
+          empresasResponse.json(),
+        ]);
+        setCategorias(categoriasData as Categoria[]);
+        setEmpresas(empresasData as EmpresaComCategoria[]);
+        setErro("");
+      } catch {
+        setErro("Não foi possível carregar os negócios. Tente novamente.");
+      } finally {
+        setCarregando(false);
       }
-
-      if (!empresasResult.error) {
-        setEmpresas((empresasResult.data ?? []) as EmpresaComCategoria[]);
-      }
-
-      setCarregando(false);
     }
 
     carregarDados();

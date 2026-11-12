@@ -3,11 +3,10 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff } from "lucide-react";
-import { supabase } from "../../../lib/supabaseClient";
 
 export default function AdminPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
+  const [usuario, setUsuario] = useState("");
   const [senha, setSenha] = useState("");
   const [mostrarSenha, setMostrarSenha] = useState(false);
   const [erro, setErro] = useState("");
@@ -18,15 +17,16 @@ export default function AdminPage() {
     let montado = true;
 
     async function verificarSessao() {
-      const { data } = await supabase.auth.getSession();
-
-      if (data.session) {
-        router.replace("/admin/dashboard");
-        return;
-      }
-
-      if (montado) {
-        setCarregandoSessao(false);
+      try {
+        const response = await fetch("/api/admin/session", { cache: "no-store" });
+        if (response.ok) {
+          router.replace("/admin/dashboard");
+          return;
+        }
+      } catch {
+        if (montado) setErro("Não foi possível verificar a sessão administrativa.");
+      } finally {
+        if (montado) setCarregandoSessao(false);
       }
     }
 
@@ -41,24 +41,29 @@ export default function AdminPage() {
     event.preventDefault();
     setErro("");
 
-    if (!email.trim() || !senha) {
-      setErro("Informe seu e-mail e sua senha para entrar.");
+    if (!usuario.trim() || senha.length < 6) {
+      setErro("Informe seu nome de usuário e uma senha com pelo menos 6 caracteres.");
       return;
     }
 
     setEntrando(true);
-    const { error } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
-      password: senha,
-    });
-
-    if (error) {
-      setErro("E-mail ou senha incorretos. Verifique seus dados e tente novamente.");
+    try {
+      const response = await fetch("/api/admin/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ usuario: usuario.trim(), senha }),
+      });
+      const result = (await response.json()) as { error?: string };
+      if (!response.ok) {
+        setErro(result.error || "Usuário ou senha incorretos. Verifique seus dados e tente novamente.");
+        setEntrando(false);
+        return;
+      }
+      router.replace("/admin/dashboard");
+    } catch {
+      setErro("Não foi possível conectar. Tente novamente.");
       setEntrando(false);
-      return;
     }
-
-    router.replace("/admin/dashboard");
   }
 
   if (carregandoSessao) {
@@ -84,17 +89,17 @@ export default function AdminPage() {
 
         <form onSubmit={fazerLogin} className="mt-7 space-y-5">
           <div>
-            <label htmlFor="email" className="text-sm font-medium text-[#77736A]">
-              E-mail
+            <label htmlFor="usuario" className="text-sm font-medium text-[#77736A]">
+              Nome de usuário
             </label>
             <input
-              id="email"
-              type="email"
-              autoComplete="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
+              id="usuario"
+              type="text"
+              autoComplete="username"
+              value={usuario}
+              onChange={(event) => setUsuario(event.target.value)}
               className="mt-2 h-12 w-full rounded-xl border border-[#E8E2D6] bg-white px-4 text-sm text-[#2B2B2B] outline-none placeholder:text-[#AAA49A] focus:border-[#C9A64A]"
-              placeholder="admin@exemplo.com"
+              placeholder="Seu nome de usuário"
             />
           </div>
 
@@ -107,6 +112,7 @@ export default function AdminPage() {
                 id="senha"
                 type={mostrarSenha ? "text" : "password"}
                 autoComplete="current-password"
+                minLength={6}
                 value={senha}
                 onChange={(event) => setSenha(event.target.value)}
                 className="h-12 w-full rounded-xl border border-[#E8E2D6] bg-white px-4 pr-12 text-sm text-[#2B2B2B] outline-none placeholder:text-[#AAA49A] focus:border-[#C9A64A]"

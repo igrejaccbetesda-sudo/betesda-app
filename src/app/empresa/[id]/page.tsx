@@ -1,68 +1,20 @@
 "use client";
 
 import Image from "next/image";
-import { useParams } from "next/navigation";
-import { MapPin, MessageCircle, Store } from "lucide-react";
+import { useParams, useRouter } from "next/navigation";
+import { ArrowLeft, MapPin, MessageCircle, Store } from "lucide-react";
 import { useEffect, useState } from "react";
 import OpenBadge from "../../../../components/OpenBadge";
-import { supabase } from "../../../../lib/supabaseClient";
+import {
+  formatBusinessDays,
+  normalizeBusinessTime,
+} from "../../../lib/business-hours";
+import { getInstagramProfileUrl } from "../../../lib/instagram";
 import type { Empresa } from "../../../../types";
 
 type EmpresaComCategoria = Empresa & {
   categorias: { nome: string } | { nome: string }[] | null;
 };
-
-const nomesDosDias = [
-  "Domingo",
-  "Segunda",
-  "Terça",
-  "Quarta",
-  "Quinta",
-  "Sexta",
-  "Sábado",
-];
-
-function formatarDias(dias: number[]) {
-  const diasValidos = dias
-    .filter((dia, index) => dias.indexOf(dia) === index)
-    .filter((dia) => dia >= 0 && dia <= 6)
-    .sort((a, b) => a - b);
-
-  if (!diasValidos.length) {
-    return "Horário não informado";
-  }
-
-  if (diasValidos.length === 7) {
-    return "Todos os dias";
-  }
-
-  const grupos: number[][] = [];
-  diasValidos.forEach((dia) => {
-    const grupoAtual = grupos[grupos.length - 1];
-    if (grupoAtual && dia === grupoAtual[grupoAtual.length - 1] + 1) {
-      grupoAtual.push(dia);
-    } else {
-      grupos.push([dia]);
-    }
-  });
-
-  return grupos
-    .map((grupo) => {
-      const primeiro = nomesDosDias[grupo[0]];
-      const ultimo = nomesDosDias[grupo[grupo.length - 1]];
-      return grupo.length > 1 ? `${primeiro} a ${ultimo}` : primeiro;
-    })
-    .join(", ");
-}
-
-function formatarHorario(empresa: Empresa) {
-  const dias = formatarDias(empresa.dias_funcionamento ?? []);
-  if (!empresa.horario_abertura || !empresa.horario_fechamento) {
-    return dias;
-  }
-
-  return `${dias}, ${empresa.horario_abertura} às ${empresa.horario_fechamento}`;
-}
 
 function obterNomeDaCategoria(categorias: EmpresaComCategoria["categorias"]) {
   if (Array.isArray(categorias)) {
@@ -78,6 +30,7 @@ function obterLink(url: string) {
 
 export default function EmpresaPage() {
   const params = useParams<{ id: string }>();
+  const router = useRouter();
   const [empresa, setEmpresa] = useState<EmpresaComCategoria | null>(null);
   const [carregando, setCarregando] = useState(true);
 
@@ -86,20 +39,20 @@ export default function EmpresaPage() {
       setCarregando(true);
 
       const id = Array.isArray(params.id) ? params.id[0] : params.id;
-      const { data, error } = await supabase
-        .from("empresas")
-        .select("*, categorias(nome)")
-        .eq("id", id)
-        .eq("status", "aprovado")
-        .maybeSingle();
-
-      if (error || !data) {
+      try {
+        const response = await fetch(`/api/businesses/${encodeURIComponent(id)}`, {
+          cache: "no-store",
+        });
+        if (!response.ok) {
+          setEmpresa(null);
+        } else {
+          setEmpresa((await response.json()) as EmpresaComCategoria);
+        }
+      } catch {
         setEmpresa(null);
-      } else {
-        setEmpresa(data as EmpresaComCategoria);
+      } finally {
+        setCarregando(false);
       }
-
-      setCarregando(false);
     }
 
     if (params.id) {
@@ -124,9 +77,30 @@ export default function EmpresaPage() {
   }
 
   const whatsapp = empresa.whatsapp.replace(/\D/g, "");
+  const enderecoCompleto = [empresa.endereco, empresa.bairro]
+    .filter((parte) => parte?.trim())
+    .join(", ");
+  const linkComoChegar = empresa.endereco.trim()
+    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(enderecoCompleto)}`
+    : "";
+  const diasFuncionamento = formatBusinessDays(empresa.dias_funcionamento);
+  const horarioAbertura = normalizeBusinessTime(empresa.horario_abertura);
+  const horarioFechamento = normalizeBusinessTime(empresa.horario_fechamento);
+  const instagramUrl = getInstagramProfileUrl(empresa.instagram);
 
   return (
     <main className="mx-auto min-h-screen w-full max-w-2xl px-5 py-6">
+      <button
+        type="button"
+        onClick={() => {
+          if (window.history.length > 1) router.back();
+          else router.push("/consulta");
+        }}
+        className="mb-4 inline-flex items-center gap-2 text-sm font-medium text-[#8A7A45] transition-colors hover:text-[#2B2B2B]"
+      >
+        <ArrowLeft size={17} aria-hidden="true" />
+        Voltar
+      </button>
       <div className="relative h-64 overflow-hidden rounded-2xl bg-[#EFE2C0] sm:h-80">
         {empresa.foto_url ? (
           <Image
@@ -167,53 +141,100 @@ export default function EmpresaPage() {
           {empresa.descricao}
         </p>
 
-        <div className="mt-7 space-y-4 border-t border-[#E8E2D6] pt-6 text-sm text-[#555149]">
-          <div className="flex items-start gap-3">
-            <MapPin className="mt-0.5 shrink-0 text-[#8A7A45]" size={19} aria-hidden="true" />
-            <div>
-              <p>{empresa.endereco}</p>
-              <p className="mt-1 text-[#77736A]">{empresa.bairro}</p>
-            </div>
-          </div>
-          <p className="text-[#77736A]">{formatarHorario(empresa)}</p>
-        </div>
-
-        <div className="mt-8 flex flex-col gap-3">
-          <a
-            href={`https://wa.me/${whatsapp}`}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-[#0D0D0C] px-5 text-sm font-semibold text-white transition-colors hover:bg-[#2B2B2B]"
-          >
-            <MessageCircle size={19} aria-hidden="true" />
-            Chamar no WhatsApp
-          </a>
-
-          {(empresa.instagram || empresa.site) && (
-            <div className="flex flex-col gap-3 sm:flex-row">
-              {empresa.instagram && (
-                <a
-                  href={obterLink(empresa.instagram)}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex h-11 flex-1 items-center justify-center rounded-full border border-[#C9A64A] px-5 text-sm font-medium text-[#8A7A45] transition-colors hover:bg-[#F3E9CC]"
-                >
-                  Instagram
-                </a>
-              )}
-              {empresa.site && (
-                <a
-                  href={obterLink(empresa.site)}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex h-11 flex-1 items-center justify-center rounded-full border border-[#C9A64A] px-5 text-sm font-medium text-[#8A7A45] transition-colors hover:bg-[#F3E9CC]"
-                >
-                  Site
-                </a>
-              )}
-            </div>
+        <div className="mt-7 space-y-6 border-t border-[#E8E2D6] pt-6 text-sm text-[#555149]">
+          {(empresa.endereco || empresa.bairro) && (
+            <section aria-labelledby="localizacao-heading">
+              <h2
+                id="localizacao-heading"
+                className="text-sm font-semibold text-[#2B2B2B]"
+              >
+                Localização
+              </h2>
+              <div className="mt-3 flex items-start gap-3">
+                <MapPin
+                  className="mt-0.5 shrink-0 text-[#8A7A45]"
+                  size={18}
+                  strokeWidth={1.75}
+                  aria-hidden="true"
+                />
+                <div>
+                  {empresa.endereco && <p>{empresa.endereco}</p>}
+                  {empresa.bairro && (
+                    <p className="mt-1 text-[#77736A]">{empresa.bairro}</p>
+                  )}
+                  {linkComoChegar && (
+                    <a
+                      href={linkComoChegar}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-2 inline-flex font-medium text-[#8A7A45] hover:underline"
+                    >
+                      Como chegar
+                    </a>
+                  )}
+                </div>
+              </div>
+            </section>
           )}
+
+          <section aria-labelledby="funcionamento-heading">
+            <h2
+              id="funcionamento-heading"
+              className="text-sm font-semibold text-[#2B2B2B]"
+            >
+              Horário de funcionamento
+            </h2>
+            <div className="mt-3 space-y-1 text-[#77736A]">
+              <p>{diasFuncionamento}</p>
+              {horarioAbertura && horarioFechamento && (
+                <p>{horarioAbertura} às {horarioFechamento}</p>
+              )}
+            </div>
+          </section>
         </div>
+
+        {(empresa.whatsapp || empresa.instagram || empresa.site) && (
+          <section className="mt-8">
+            <div className="flex flex-col gap-3">
+              {whatsapp && (
+                <a
+                  href={`https://wa.me/${whatsapp}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-[#0D0D0C] px-5 text-sm font-semibold text-white transition-colors hover:bg-[#2B2B2B]"
+                >
+                  <MessageCircle size={19} aria-hidden="true" />
+                  Chamar no WhatsApp
+                </a>
+              )}
+
+              {(instagramUrl || empresa.site) && (
+                <div className="flex flex-col gap-3 sm:flex-row">
+                  {instagramUrl && (
+                    <a
+                      href={instagramUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex h-11 flex-1 items-center justify-center rounded-full border border-[#C9A64A] px-5 text-sm font-medium text-[#8A7A45] transition-colors hover:bg-[#F3E9CC]"
+                    >
+                      Instagram
+                    </a>
+                  )}
+                  {empresa.site && (
+                    <a
+                      href={obterLink(empresa.site)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex h-11 flex-1 items-center justify-center rounded-full border border-[#C9A64A] px-5 text-sm font-medium text-[#8A7A45] transition-colors hover:bg-[#F3E9CC]"
+                    >
+                      Site
+                    </a>
+                  )}
+                </div>
+              )}
+            </div>
+          </section>
+        )}
       </section>
     </main>
   );

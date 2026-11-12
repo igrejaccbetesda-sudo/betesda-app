@@ -2,7 +2,6 @@
 
 import { ChangeEvent, FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "../../../lib/supabaseClient";
 import type { Categoria } from "../../../types";
 
 const diasDaSemana = [
@@ -59,18 +58,15 @@ export default function CadastroPage() {
 
   useEffect(() => {
     async function carregarCategorias() {
-      const { data, error } = await supabase
-        .from("categorias")
-        .select("*")
-        .order("nome", { ascending: true });
-
-      if (!error) {
-        setCategorias((data ?? []) as Categoria[]);
-      } else {
+      try {
+        const response = await fetch("/api/categories", { cache: "no-store" });
+        if (!response.ok) throw new Error("Falha ao carregar categorias");
+        setCategorias((await response.json()) as Categoria[]);
+      } catch {
         setMensagemErro("Não foi possível carregar as categorias. Tente novamente.");
+      } finally {
+        setCarregandoCategorias(false);
       }
-
-      setCarregandoCategorias(false);
     }
 
     carregarCategorias();
@@ -137,58 +133,42 @@ export default function CadastroPage() {
 
     try {
       const whatsapp = formulario.whatsapp;
-      const { data: empresaExistente, error: consultaError } = await supabase
-        .from("empresas")
-        .select("id")
-        .eq("whatsapp", whatsapp)
-        .maybeSingle();
-
-      console.log("[Cadastro] verificação de WhatsApp", {
-        whatsappConsultado: whatsapp,
-        empresaExistente,
-        consultaError,
+      const verificacaoResponse = await fetch("/api/whatsapp/check", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ whatsapp }),
       });
-
-      if (consultaError) {
-        throw new Error("Não foi possível verificar o WhatsApp informado.");
+      const verificacao = (await verificacaoResponse.json()) as {
+        exists?: boolean;
+        error?: string;
+      };
+      if (!verificacaoResponse.ok) {
+        throw new Error(verificacao.error || "Não foi possível verificar o WhatsApp informado.");
       }
 
-      if (empresaExistente) {
+      if (verificacao.exists) {
         setMensagemErro(
           "Já existe um cadastro com esse WhatsApp. Entre em contato com a administração se precisar atualizar seus dados.",
         );
         return;
       }
 
-      let fotoUrl = "";
-      if (foto) {
-        const nomeSeguro = foto.name.replace(/[^a-zA-Z0-9._-]/g, "-");
-        const caminhoFoto = `${Date.now()}-${nomeSeguro}`;
-        const { error: uploadError } = await supabase.storage
-          .from("fotos-empresas")
-          .upload(caminhoFoto, foto, { contentType: foto.type, upsert: false });
-
-        if (uploadError) {
-          throw new Error("Não foi possível enviar a foto. Tente novamente.");
-        }
-
-        const { data: urlData } = supabase.storage
-          .from("fotos-empresas")
-          .getPublicUrl(caminhoFoto);
-        fotoUrl = urlData.publicUrl;
-      }
-
-      const { error: insertError } = await supabase.from("empresas").insert({
+      const formData = new FormData();
+      formData.set("business", JSON.stringify({
         ...formulario,
         nome: formulario.nome.trim(),
         whatsapp,
         responsavel: formulario.responsavel.trim(),
-        foto_url: fotoUrl,
-        status: "pendente",
-      });
+      }));
+      if (foto) formData.set("foto", foto);
 
-      if (insertError) {
-        throw new Error("Não foi possível enviar o cadastro. Tente novamente.");
+      const cadastroResponse = await fetch("/api/businesses", {
+        method: "POST",
+        body: formData,
+      });
+      const cadastroResult = (await cadastroResponse.json()) as { error?: string };
+      if (!cadastroResponse.ok) {
+        throw new Error(cadastroResult.error || "Não foi possível enviar o cadastro. Tente novamente.");
       }
 
       router.push("/cadastro/sucesso");
